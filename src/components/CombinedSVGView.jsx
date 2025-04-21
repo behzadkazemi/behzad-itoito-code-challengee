@@ -1,45 +1,42 @@
 import { useState, useEffect, useRef } from 'react'
+import ThreeDPreview from './ThreeDPreview'
 
 const CombinedSVGView = ({ svgFiles, lines, onAddLine }) => {
   const containerRef = useRef(null)
-  const [dimensions, setDimensions] = useState({ 
-    width: 0, 
-    height: 0,
-    gap: 40,
-    svgWidth: 0
-  })
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0, gap: 40, svgWidth: 0 })
   const [svgElements, setSvgElements] = useState([])
   const [startPoint, setStartPoint] = useState(null)
   const [activeDot, setActiveDot] = useState(null)
   const [mousePosition, setMousePosition] = useState(null)
+  const [show3D, setShow3D] = useState(false)
 
   useEffect(() => {
     if (containerRef.current && svgFiles.length === 2) {
       const elements = []
       const parser = new DOMParser()
-      
+
       svgFiles.forEach((file, index) => {
         const doc = parser.parseFromString(file.content, 'image/svg+xml')
         const svg = doc.querySelector('svg')
-        
+
         if (svg) {
           svg.removeAttribute('width')
           svg.removeAttribute('height')
           svg.setAttribute('preserveAspectRatio', 'xMidYMid meet')
-          
+
           if (!svg.getAttribute('viewBox')) {
             const width = svg.getAttribute('width') || '100%'
             const height = svg.getAttribute('height') || '100%'
             svg.setAttribute('viewBox', `0 0 ${width} ${height}`)
           }
-          
+
           svg.classList.add(`svg-${index}`)
           elements.push(svg)
         }
       })
 
       setSvgElements(elements)
-      
+
       const rect = containerRef.current.getBoundingClientRect()
       setDimensions({
         width: rect.width,
@@ -52,30 +49,24 @@ const CombinedSVGView = ({ svgFiles, lines, onAddLine }) => {
 
   const handleMouseMove = (e) => {
     if (!containerRef.current || !startPoint) return
-    
     const rect = containerRef.current.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
-    
     setMousePosition({ x, y })
   }
 
   const handleClick = (e) => {
     if (!containerRef.current) return
-    
     const rect = containerRef.current.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
-    
     const { svgWidth, gap } = dimensions
 
-    // Identify which SVG was clicked
     let svgIndex = -1
     if (x < svgWidth) svgIndex = 0
     else if (x > svgWidth + gap) svgIndex = 1
 
     if (svgIndex === -1) {
-      // Clicked in the gap
       setStartPoint(null)
       setActiveDot(null)
       setMousePosition(null)
@@ -94,7 +85,6 @@ const CombinedSVGView = ({ svgFiles, lines, onAddLine }) => {
           svgIndex
         })
       } else {
-        // Allow same SVG to same SVG line
         const newLine = {
           start: startPoint,
           end: { x: adjustedX, y, svgIndex },
@@ -108,9 +98,7 @@ const CombinedSVGView = ({ svgFiles, lines, onAddLine }) => {
     }
   }
 
-  const handleContextMenu = (e) => {
-    e.preventDefault()
-  }
+  const handleContextMenu = (e) => e.preventDefault()
 
   const handleMouseLeave = () => {
     if (startPoint) {
@@ -120,8 +108,12 @@ const CombinedSVGView = ({ svgFiles, lines, onAddLine }) => {
     }
   }
 
+  const handleToggle3D = () => {
+    setShow3D((prev) => !prev)
+  }
+
   return (
-    <div 
+    <div
       ref={containerRef}
       onClick={handleClick}
       onMouseMove={handleMouseMove}
@@ -130,24 +122,24 @@ const CombinedSVGView = ({ svgFiles, lines, onAddLine }) => {
       onMouseLeave={handleMouseLeave}
       className="relative w-full h-full min-h-[400px] cursor-crosshair flex"
     >
-      {/* First SVG */}
-      <div 
+      {/* SVG 1 */}
+      <div
         className="h-full overflow-hidden"
         style={{ width: dimensions.svgWidth, marginRight: dimensions.gap }}
         dangerouslySetInnerHTML={{ __html: svgElements[0]?.outerHTML || '' }}
       />
 
-      {/* Second SVG */}
-      <div 
+      {/* SVG 2 */}
+      <div
         className="h-full overflow-hidden"
         style={{ width: dimensions.svgWidth }}
         dangerouslySetInnerHTML={{ __html: svgElements[1]?.outerHTML || '' }}
       />
 
-      {/* Blue dashed lines (underlay) */}
-      <svg 
-        width={dimensions.width} 
-        height={dimensions.height} 
+      {/* Blue dashed lines */}
+      <svg
+        width={dimensions.width}
+        height={dimensions.height}
         className="absolute top-0 left-0 pointer-events-none"
         style={{ zIndex: 1 }}
       >
@@ -170,10 +162,10 @@ const CombinedSVGView = ({ svgFiles, lines, onAddLine }) => {
         })}
       </svg>
 
-      {/* Red lines + preview */}
-      <svg 
-        width={dimensions.width} 
-        height={dimensions.height} 
+      {/* Red lines + preview elements */}
+      <svg
+        width={dimensions.width}
+        height={dimensions.height}
         className="absolute top-0 left-0 pointer-events-none"
         style={{ zIndex: 2 }}
       >
@@ -194,12 +186,10 @@ const CombinedSVGView = ({ svgFiles, lines, onAddLine }) => {
           )
         })}
 
-        {/* Green dot */}
+        {/* Active green dot */}
         {activeDot && (
           <circle
-            cx={activeDot.svgIndex === 0 ? 
-                activeDot.x : 
-                activeDot.x + dimensions.svgWidth + dimensions.gap}
+            cx={activeDot.svgIndex === 0 ? activeDot.x : activeDot.x + dimensions.svgWidth + dimensions.gap}
             cy={activeDot.y}
             r="6"
             fill="green"
@@ -211,9 +201,7 @@ const CombinedSVGView = ({ svgFiles, lines, onAddLine }) => {
         {/* Mouse preview line */}
         {startPoint && mousePosition && (
           <line
-            x1={startPoint.svgIndex === 0 ? 
-                startPoint.x : 
-                startPoint.x + dimensions.svgWidth + dimensions.gap}
+            x1={startPoint.svgIndex === 0 ? startPoint.x : startPoint.x + dimensions.svgWidth + dimensions.gap}
             y1={startPoint.y}
             x2={mousePosition.x}
             y2={mousePosition.y}
@@ -223,6 +211,27 @@ const CombinedSVGView = ({ svgFiles, lines, onAddLine }) => {
           />
         )}
       </svg>
+
+      {/* 3D Preview Button */}
+      <button
+        onClick={handleToggle3D}
+        className="absolute bottom-4 right-4 z-10 bg-black text-white px-4 py-2 rounded shadow-lg hover:bg-gray-800 transition"
+      >
+        {show3D ? 'Hide 3D Preview' : 'Show 3D Preview'}
+      </button>
+
+      {/* 3D Preview Viewer */}
+      {show3D && (
+        <div className="absolute inset-0 z-50 bg-white bg-opacity-95 flex items-center justify-center">
+          <ThreeDPreview lines={lines} width={dimensions.width} height={dimensions.height} />
+          <button
+            onClick={handleToggle3D}
+            className="absolute top-4 right-4 bg-black text-white px-3 py-1 rounded"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   )
 }
