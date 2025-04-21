@@ -5,10 +5,13 @@ const CombinedSVGView = ({ svgFiles, lines, onAddLine }) => {
   const [dimensions, setDimensions] = useState({ 
     width: 0, 
     height: 0,
-    gap: 40 // Added gap between SVGs
+    gap: 40,
+    svgWidth: 0
   })
   const [svgElements, setSvgElements] = useState([])
   const [startPoint, setStartPoint] = useState(null)
+  const [activeDot, setActiveDot] = useState(null)
+  const [mousePosition, setMousePosition] = useState(null)
 
   useEffect(() => {
     if (containerRef.current && svgFiles.length === 2) {
@@ -38,14 +41,24 @@ const CombinedSVGView = ({ svgFiles, lines, onAddLine }) => {
       setSvgElements(elements)
       
       const rect = containerRef.current.getBoundingClientRect()
-      setDimensions(prev => ({
-        ...prev,
+      setDimensions({
         width: rect.width,
         height: rect.height,
-        svgWidth: (rect.width - prev.gap) / 2 // Account for gap in width calculation
-      }))
+        gap: 40,
+        svgWidth: (rect.width - 40) / 2
+      })
     }
   }, [svgFiles])
+
+  const handleMouseMove = (e) => {
+    if (!containerRef.current || !startPoint) return
+    
+    const rect = containerRef.current.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    
+    setMousePosition({ x, y })
+  }
 
   const handleClick = (e) => {
     if (!containerRef.current) return
@@ -58,14 +71,28 @@ const CombinedSVGView = ({ svgFiles, lines, onAddLine }) => {
     const svgIndex = x < dimensions.svgWidth ? 0 : 
                      x > dimensions.svgWidth + dimensions.gap ? 1 : -1
     
-    if (svgIndex === -1) return // Clicked in the gap
+    if (svgIndex === -1) {
+      // Clicked in the gap - cancel operation
+      setStartPoint(null)
+      setActiveDot(null)
+      setMousePosition(null)
+      return
+    }
     
     const adjustedX = svgIndex === 0 ? x : x - dimensions.svgWidth - dimensions.gap
     
     if (e.button === 0 || e.button === 2) {
       if (!startPoint) {
-        setStartPoint({ x: adjustedX, y, svgIndex })
+        // First click - set start point
+        const newStartPoint = { x: adjustedX, y, svgIndex }
+        setStartPoint(newStartPoint)
+        setActiveDot({
+          x: svgIndex === 0 ? adjustedX : adjustedX + dimensions.svgWidth + dimensions.gap,
+          y,
+          svgIndex
+        })
       } else {
+        // Second click - complete the line
         if (startPoint.svgIndex !== svgIndex) {
           onAddLine({
             start: startPoint,
@@ -74,6 +101,8 @@ const CombinedSVGView = ({ svgFiles, lines, onAddLine }) => {
           })
         }
         setStartPoint(null)
+        setActiveDot(null)
+        setMousePosition(null)
       }
     }
   }
@@ -82,12 +111,23 @@ const CombinedSVGView = ({ svgFiles, lines, onAddLine }) => {
     e.preventDefault()
   }
 
+  const handleMouseLeave = () => {
+    if (startPoint) {
+      // Cancel operation if mouse leaves the container
+      setStartPoint(null)
+      setActiveDot(null)
+      setMousePosition(null)
+    }
+  }
+
   return (
     <div 
       ref={containerRef}
       onClick={handleClick}
+      onMouseMove={handleMouseMove}
       onContextMenu={handleContextMenu}
       onMouseDown={handleClick}
+      onMouseLeave={handleMouseLeave}
       className="relative w-full h-full min-h-[400px] cursor-crosshair flex"
     >
       {/* First SVG with right margin */}
@@ -104,14 +144,14 @@ const CombinedSVGView = ({ svgFiles, lines, onAddLine }) => {
         dangerouslySetInnerHTML={{ __html: svgElements[1]?.outerHTML || '' }}
       />
       
-      {/* Render lines on top */}
+      {/* Render blue lines (backside stitching) under all layers */}
       <svg 
         width={dimensions.width} 
         height={dimensions.height} 
         className="absolute top-0 left-0 pointer-events-none"
+        style={{ zIndex: 1 }} // Below other elements
       >
-        {lines.map((line, i) => {
-          // Adjust coordinates accounting for gap
+        {lines.filter(line => line.color === 'blue').map((line, i) => {
           const startX = line.start.svgIndex === 0 ? 
             line.start.x : 
             line.start.x + dimensions.svgWidth + dimensions.gap
@@ -122,16 +162,79 @@ const CombinedSVGView = ({ svgFiles, lines, onAddLine }) => {
             
           return (
             <line
-              key={i}
+              key={`blue-${i}`}
               x1={startX}
               y1={line.start.y}
               x2={endX}
               y2={line.end.y}
-              stroke={line.color}
+              stroke="blue"
               strokeWidth="2"
+              strokeDasharray="5,3" // Dashed line for backside stitching
+              opacity="0.7" // Semi-transparent
             />
           )
         })}
+      </svg>
+      
+      {/* Render red lines (frontside stitching) and other interactive elements on top */}
+      <svg 
+        width={dimensions.width} 
+        height={dimensions.height} 
+        className="absolute top-0 left-0 pointer-events-none"
+        style={{ zIndex: 2 }} // Above other elements
+      >
+        {/* Red lines (frontside stitching) */}
+        {lines.filter(line => line.color === 'red').map((line, i) => {
+          const startX = line.start.svgIndex === 0 ? 
+            line.start.x : 
+            line.start.x + dimensions.svgWidth + dimensions.gap
+          
+          const endX = line.end.svgIndex === 0 ? 
+            line.end.x : 
+            line.end.x + dimensions.svgWidth + dimensions.gap
+            
+          return (
+            <line
+              key={`red-${i}`}
+              x1={startX}
+              y1={line.start.y}
+              x2={endX}
+              y2={line.end.y}
+              stroke="red"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          )
+        })}
+        
+        {/* Active green dot */}
+        {activeDot && (
+          <circle
+            cx={activeDot.svgIndex === 0 ? 
+                activeDot.x : 
+                activeDot.x + dimensions.svgWidth + dimensions.gap}
+            cy={activeDot.y}
+            r="6"
+            fill="green"
+            stroke="white"
+            strokeWidth="2"
+          />
+        )}
+        
+        {/* Preview line that follows mouse */}
+        {startPoint && mousePosition && (
+          <line
+            x1={startPoint.svgIndex === 0 ? 
+                startPoint.x : 
+                startPoint.x + dimensions.svgWidth + dimensions.gap}
+            y1={startPoint.y}
+            x2={mousePosition.x}
+            y2={mousePosition.y}
+            stroke="gray"
+            strokeWidth="2"
+            strokeDasharray="5,3"
+          />
+        )}
       </svg>
     </div>
   )
