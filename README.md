@@ -41,6 +41,10 @@ This app is designed in **three simple phases**:
 
 ---
 
+![Introduction](introduction.gif)
+
+
+
 ## 🚀 How to Run It
 
 ```bash
@@ -63,7 +67,6 @@ If you believe in me, I’m confident I can take it further and build something 
 
 
 
-![Introduction](introduction.gif)
 
 
 
