@@ -60,3 +60,11 @@ Honestly, I learned a lot during this process — especially around SVG handling
 I believe that with more time and feedback, I can improve this project even more.
 
 If you believe in me, I’m confident I can take it further and build something even better! 🙌
+
+
+
+![Introduction](introduction.gif)
+
+
+
+
